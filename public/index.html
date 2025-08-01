@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTML Optimization Tool</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>HTML Optimization Tool</h1>
+            <p>Optimize HTML content for readability and print using various libraries</p>
+        </header>
+
+        <div class="url-input-section">
+            <div class="input-mode-selection">
+                <label class="input-mode-label">
+                    <input type="radio" name="input-mode" value="url" checked>
+                    <span>Website URL</span>
+                </label>
+                <label class="input-mode-label">
+                    <input type="radio" name="input-mode" value="file">
+                    <span>Local HTML File</span>
+                </label>
+            </div>
+            
+            <div class="input-group" id="url-input-group">
+                <label for="url-input">Enter Website URL:</label>
+                <input 
+                    type="url" 
+                    id="url-input" 
+                    placeholder="https://example.com"
+                    required
+                >
+            </div>
+            
+            <div class="input-group" id="file-input-group" style="display: none;">
+                <label for="file-input">Select HTML File:</label>
+                <div class="file-input-wrapper">
+                    <input 
+                        type="file" 
+                        id="file-input" 
+                        accept=".html,.htm,.xhtml"
+                        required
+                    >
+                    <div class="file-input-display">
+                        <span class="file-input-text">Choose HTML file...</span>
+                        <button type="button" class="file-browse-btn">Browse</button>
+                    </div>
+                </div>
+                <div class="file-info" id="file-info" style="display: none;">
+                    <span class="file-name"></span>
+                    <span class="file-size"></span>
+                </div>
+            </div>
+            
+            <div class="library-group">
+                <label for="library-select">Choose Optimization Library:</label>
+                <select id="library-select">
+                    <option value="mozilla-readability" selected>Mozilla Readability - Official library</option>
+                    <option value="readability.js">Readability.js - Content extraction</option>
+                    <option value="cheerio">Cheerio - Server-side HTML parsing</option>
+                    <option value="puppeteer">Puppeteer - Browser automation</option>
+                    <option value="playwright">Playwright - Cross-browser automation</option>
+                    <option value="prettier">Prettier - Code formatting</option>
+                    <option value="js-beautify">JS-Beautify - HTML beautification</option>
+                    <option value="domparser">DOMParser - Web API parsing</option>
+                </select>
+            </div>
+            
+            <button id="optimize-btn" class="optimize-button">
+                <span class="btn-text">Optimize Content</span>
+                <span class="btn-loader" style="display: none;">
+                    <div class="spinner"></div>
+                    Processing...
+                </span>
+            </button>
+        </div>
+
+        <div class="status-section">
+            <div id="status-message" class="status-message"></div>
+        </div>
+
+        <div class="content-section">
+            <div class="content-panel">
+                <div class="panel-header">
+                    <h3>Optimized Web Content</h3>
+                    <div class="panel-actions">
+                        <button id="copy-optimized" class="action-btn" title="Copy optimized content">
+                            📋 Copy
+                        </button>
+                        <button id="print-optimized" class="action-btn" title="Print optimized content">
+                            🖨️ Print
+                        </button>
+                        <button id="download-optimized" class="action-btn" title="Download as HTML">
+                            💾 Download
+                        </button>
+                    </div>
+                </div>
+                <div class="content-container">
+                    <iframe id="optimized-frame" class="content-frame"></iframe>
+                </div>
+                <div class="panel-info">
+                    <div id="library-description">
+                        <p>Select a library above to see optimized content</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="features-section">
+            <h3>Optimization Features</h3>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <h4>Ad Removal</h4>
+                    <p>Automatically removes advertisements, banners, and promotional content</p>
+                </div>
+                <div class="feature-card">
+                    <h4>Text Extraction</h4>
+                    <p>Extracts main content while preserving important text formatting</p>
+                </div>
+                <div class="feature-card">
+                    <h4>Image Optimization</h4>
+                    <p>Retains images with optimized sizing for reading and printing</p>
+                </div>
+                <div class="feature-card">
+                    <h4>Print Layout</h4>
+                    <p>Optimizes layout and typography for better print readability</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <p>&copy; 2025 HTML Optimization Tool. Built for better web content readability.</p>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
