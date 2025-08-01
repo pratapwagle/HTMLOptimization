@@ -9,6 +9,7 @@ class HTMLOptimizer {
         this.fileInputText = document.querySelector('.file-input-text');
         this.fileInfo = document.getElementById('file-info');
         this.librarySelect = document.getElementById('library-select');
+        this.additionalProcessingCheckbox = document.getElementById('additional-processing');
         this.optimizeBtn = document.getElementById('optimize-btn');
         this.statusMessage = document.getElementById('status-message');
         this.optimizedFrame = document.getElementById('optimized-frame');
@@ -233,6 +234,7 @@ class HTMLOptimizer {
 
     async optimizeContent() {
         const library = this.librarySelect.value;
+        const additionalProcessing = this.additionalProcessingCheckbox.checked;
         
         // Validation
         if (!library) {
@@ -259,7 +261,7 @@ class HTMLOptimizer {
                 return;
             }
             
-            requestData = { url, library };
+            requestData = { url, library, additionalProcessing };
             
         } else {
             // File mode
@@ -276,7 +278,8 @@ class HTMLOptimizer {
                 requestData = { 
                     htmlContent: fileContent,
                     library,
-                    fileName: file.name 
+                    fileName: file.name,
+                    additionalProcessing
                 };
                 url = `Local file: ${file.name}`;
             } catch (error) {
@@ -287,7 +290,8 @@ class HTMLOptimizer {
         
         // Start optimization process
         this.setLoadingState(true);
-        this.showStatus(`Optimizing ${url} with ${library}...`, 'info');
+        const processingMode = additionalProcessing ? 'with additional processing' : 'raw output';
+        this.showStatus(`Optimizing ${url} with ${library} (${processingMode})...`, 'info');
         
         try {
             const endpoint = this.currentData.inputMode === 'url' ? '/api/optimize' : '/api/optimize-file';
@@ -308,6 +312,7 @@ class HTMLOptimizer {
             
             if (data.success) {
                 this.currentData = {
+                    ...this.currentData, // Preserve existing properties like inputMode and fileName
                     originalContent: data.originalContent,
                     optimizedContent: data.optimizedContent,
                     url: data.url,
