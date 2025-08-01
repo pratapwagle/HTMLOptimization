@@ -13,119 +13,42 @@ class OptimizationService {
         try {
             console.log(`Fetching URL: ${url}`);
             
-            // Try with different configurations to handle redirects
-            const configurations = [
-                {
-                    maxRedirects: 5,
-                    validateStatus: (status) => status >= 200 && status < 400,
-                    httpsAgent: new (require('https').Agent)({ rejectUnauthorized: false }),
-                    headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                        'Accept-Language': 'en-US,en;q=0.5',
-                        'Accept-Encoding': 'gzip, deflate',
-                        'Connection': 'keep-alive',
-                        'Upgrade-Insecure-Requests': '1'
-                    }
-                },
-                {
-                    maxRedirects: 10, // More redirects allowed
-                    validateStatus: (status) => status >= 200 && status < 500,
-                    httpsAgent: new (require('https').Agent)({ rejectUnauthorized: false }),
-                    headers: {
-                        'User-Agent': 'curl/7.68.0',
-                        'Accept': '*/*'
-                    }
-                },
-                {
-                    maxRedirects: 15, // Even more redirects
-                    validateStatus: (status) => status >= 200 && status < 600,
-                    httpsAgent: new (require('https').Agent)({ rejectUnauthorized: false }),
-                    headers: {
-                        'User-Agent': 'HTMLOptimizationBot/1.0',
-                        'Accept': 'text/html'
-                    }
-                }
-            ];
+            // Use simple fetch first - most reliable approach
+            const { default: fetch } = await import('node-fetch');
+            const https = require('https');
             
-            let lastError;
+            const agent = new https.Agent({
+                rejectUnauthorized: false
+            });
             
-            for (const [index, config] of configurations.entries()) {
-                try {
-                    console.log(`Trying configuration ${index + 1}/${configurations.length} for ${url}`);
-                    
-                    const response = await axios.get(url, {
-                        ...config,
-                        timeout: 30000,
-                        decompress: true,
-                        maxContentLength: 50 * 1024 * 1024, // 50MB limit
-                        maxBodyLength: 50 * 1024 * 1024
-                    });
-                    
-                    // Validate content length and type - more flexible validation
-                    if (response.data && response.data.length > 200 && 
-                        (typeof response.data === 'string' && 
-                         (response.data.includes('<html') || 
-                          response.data.includes('<body') || 
-                          response.data.includes('<head') ||
-                          response.data.includes('<!DOCTYPE')))) {
-                        console.log(`Successfully fetched ${url} with config ${index + 1}, content length: ${response.data.length}`);
-                        return response.data;
-                    } else {
-                        console.log(`Content too small or invalid HTML (${response.data?.length || 0} chars), trying next config...`);
-                        throw new Error('Content too small or not HTML');
-                    }
-                    
-                } catch (error) {
-                    console.log(`Configuration ${index + 1} failed: ${error.message}`);
-                    lastError = error;
-                    
-                    // If it's a redirect issue, try next configuration
-                    if (error.message.includes('redirect') || error.code === 'ERR_FR_TOO_MANY_REDIRECTS') {
-                        continue;
-                    }
-                    
-                    // If it's a status error but we got data, try to use it
-                    if (error.response && error.response.data && typeof error.response.data === 'string') {
-                        console.log(`Got data despite error, using it. Status: ${error.response.status}`);
-                        return error.response.data;
-                    }
-                }
+            const response = await fetch(url, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.5'
+                },
+                timeout: 30000,
+                redirect: 'follow',
+                follow: 10,
+                agent: url.startsWith('https:') ? agent : undefined
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
             
-            // All configurations failed, try a simple fetch as last resort
-            console.log('All axios configurations failed, trying simple fetch...');
-            try {
-                const { default: fetch } = await import('node-fetch');
-                const https = require('https');
-                
-                const agent = new https.Agent({
-                    rejectUnauthorized: false
-                });
-                
-                const response = await fetch(url, {
-                    headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                    },
-                    timeout: 30000,
-                    redirect: 'follow',
-                    follow: 10,
-                    agent: url.startsWith('https:') ? agent : undefined
-                });
-                
-                if (response.ok) {
-                    const content = await response.text();
-                    if (content.length > 200 && (content.includes('<html') || content.includes('<body') || content.includes('<!DOCTYPE'))) {
-                        console.log(`Simple fetch succeeded, content length: ${content.length}`);
-                        return content;
-                    }
-                }
-            } catch (fetchError) {
-                console.log('Simple fetch also failed:', fetchError.message);
+            const content = await response.text();
+            
+            if (!content || content.length < 100) {
+                throw new Error('Empty or too small content received');
             }
             
-            // All methods failed, throw the last error with better message
-            throw lastError;
+            if (!content.includes('<html') && !content.includes('<body') && !content.includes('<!DOCTYPE')) {
+                throw new Error('Response does not appear to be HTML');
+            }
+            
+            console.log(`Successfully fetched ${url}, content length: ${content.length}`);
+            return content;
             
         } catch (error) {
             console.error(`Failed to fetch ${url}:`, error.message);
@@ -136,18 +59,18 @@ class OptimizationService {
                 throw new Error(`Connection refused by the server: ${url}`);
             } else if (error.code === 'ETIMEDOUT' || error.message.includes('timeout')) {
                 throw new Error(`Request timed out. The website might be slow or unreachable: ${url}`);
-            } else if (error.message.includes('redirect') || error.code === 'ERR_FR_TOO_MANY_REDIRECTS') {
+            } else if (error.message.includes('redirect')) {
                 throw new Error(`Too many redirects detected. The website might have a redirect loop: ${url}`);
-            } else if (error.response) {
-                throw new Error(`Server responded with status ${error.response.status}: ${error.response.statusText} for ${url}`);
+            } else if (error.message.includes('HTTP')) {
+                throw new Error(`Server error: ${error.message} for ${url}`);
             } else {
                 throw new Error(`Failed to fetch URL: ${error.message}. Please try a different URL or check if the website is accessible.`);
             }
         }
     }
 
-    async optimizeHTML(url, library) {
-        console.log(`Starting optimization for ${url} using ${library}`);
+    async optimizeHTML(url, library, additionalProcessing = false) {
+        console.log(`Starting optimization for ${url} using ${library} (additional processing: ${additionalProcessing})`);
         
         // Validate URL format
         try {
@@ -190,7 +113,7 @@ class OptimizationService {
                     break;
                 case 'mozilla-readability':
                     console.log('Optimizing with Mozilla Readability...');
-                    optimizedContent = await this.optimizeWithMozillaReadability(originalContent, url);
+                    optimizedContent = await this.optimizeWithMozillaReadability(originalContent, url, additionalProcessing);
                     break;
                 case 'puppeteer':
                     console.log('Optimizing with Puppeteer...');
@@ -233,8 +156,8 @@ class OptimizationService {
         };
     }
 
-    async optimizeHTMLContent(htmlContent, library, fileName = 'uploaded file') {
-        console.log(`Starting optimization for ${fileName} using ${library}`);
+    async optimizeHTMLContent(htmlContent, library, fileName = 'uploaded file', additionalProcessing = false) {
+        console.log(`Starting optimization for ${fileName} using ${library} (additional processing: ${additionalProcessing})`);
         
         // Validate HTML content
         if (!htmlContent || typeof htmlContent !== 'string') {
@@ -265,7 +188,7 @@ class OptimizationService {
                     break;
                 case 'mozilla-readability':
                     console.log('Optimizing with Mozilla Readability...');
-                    optimizedContent = await this.optimizeWithMozillaReadability(originalContent, fileName);
+                    optimizedContent = await this.optimizeWithMozillaReadability(originalContent, fileName, additionalProcessing);
                     break;
                 case 'puppeteer':
                     // For file content, we need to create a temporary URL or use data: URL
@@ -903,9 +826,9 @@ class OptimizationService {
 </html>`;
     }
 
-    async optimizeWithMozillaReadability(html, url) {
+    async optimizeWithMozillaReadability(html, url, additionalProcessing = false) {
         try {
-            console.log('Mozilla Readability: Starting content extraction...');
+            console.log(`Mozilla Readability: Starting content extraction (additional processing: ${additionalProcessing})...`);
             
             // Handle both URL and filename cases
             const baseURL = url && url.startsWith('http') ? url : 'http://localhost/';
@@ -966,65 +889,69 @@ class OptimizationService {
             const contentDom = new JSDOM(article.content);
             const contentDocument = contentDom.window.document;
             
-            // Get images that made it through Readability
+              // Get images that made it through Readability
             const extractedImages = Array.from(contentDocument.querySelectorAll('img'));
             console.log(`Mozilla Readability: Found ${extractedImages.length} images in extracted content`);
             
             // Process existing images in the extracted content
             extractedImages.forEach((img, index) => {
                 console.log(`Mozilla Readability: Processing extracted image ${index + 1}: ${img.src?.substring(0, 50)}...`);
-                this.processImageAttributes(img, url);
+                if (additionalProcessing) {
+                    this.processImageAttributes(img, url);
+                }
             });
             
-            // Find images that were lost during Readability extraction
-            const extractedImageSrcs = new Set(extractedImages.map(img => 
-                img.src || img.getAttribute('data-src') || img.getAttribute('data-original')
-            ).filter(Boolean));
-            
-            const missingImages = originalImages.filter(originalImg => {
-                const imgSrc = originalImg.src || originalImg.dataSrc || originalImg.dataOriginal;
-                return imgSrc && !extractedImageSrcs.has(imgSrc) && 
-                       imgSrc.length > 10 && // Filter out tiny/placeholder images
-                       !imgSrc.includes('data:image') &&
-                       !imgSrc.includes('placeholder') &&
-                       !imgSrc.includes('blank.gif') &&
-                       !imgSrc.includes('spacer.gif') &&
-                       !imgSrc.includes('loading.gif');
-            });
-            
-            console.log(`Mozilla Readability: Found ${missingImages.length} images that were filtered out by Readability`);
-            
-            // Add missing images back to the content in appropriate locations
-            if (missingImages.length > 0) {
-                const paragraphs = contentDocument.querySelectorAll('p');
-                let imageIndex = 0;
+            // Add missing images back to the content in appropriate locations (only if additional processing is enabled)
+            if (additionalProcessing) {
+                // Find images that were lost during Readability extraction
+                const extractedImageSrcs = new Set(extractedImages.map(img => 
+                    img.src || img.getAttribute('data-src') || img.getAttribute('data-original')
+                ).filter(Boolean));
                 
-                missingImages.forEach((missingImg, index) => {
-                    if (imageIndex < paragraphs.length) {
-                        const imgElement = contentDocument.createElement('img');
-                        imgElement.src = missingImg.src || missingImg.dataSrc || missingImg.dataOriginal;
-                        imgElement.alt = missingImg.alt || `Image ${index + 1}`;
-                        if (missingImg.title) imgElement.title = missingImg.title;
-                        if (missingImg.srcset) imgElement.srcset = missingImg.srcset;
-                        
-                        // Process the recreated image
-                        this.processImageAttributes(imgElement, url);
-                        
-                        // Create a wrapper div for the image
-                        const imageWrapper = contentDocument.createElement('div');
-                        imageWrapper.style.cssText = 'margin: 2rem 0; text-align: center;';
-                        imageWrapper.appendChild(imgElement);
-                        
-                        // Insert after every 2-3 paragraphs
-                        const targetParagraph = paragraphs[Math.min(imageIndex, paragraphs.length - 1)];
-                        if (targetParagraph && targetParagraph.parentNode) {
-                            targetParagraph.parentNode.insertBefore(imageWrapper, targetParagraph.nextSibling);
-                            imageIndex += 2; // Skip 2 paragraphs for next image
-                        }
-                        
-                        console.log(`Mozilla Readability: Re-added missing image: ${imgElement.src?.substring(0, 50)}...`);
-                    }
+                const missingImages = originalImages.filter(originalImg => {
+                    const imgSrc = originalImg.src || originalImg.dataSrc || originalImg.dataOriginal;
+                    return imgSrc && !extractedImageSrcs.has(imgSrc) && 
+                           imgSrc.length > 10 && // Filter out tiny/placeholder images
+                           !imgSrc.includes('data:image') &&
+                           !imgSrc.includes('placeholder') &&
+                           !imgSrc.includes('blank.gif') &&
+                           !imgSrc.includes('spacer.gif') &&
+                           !imgSrc.includes('loading.gif');
                 });
+                
+                console.log(`Mozilla Readability: Found ${missingImages.length} images that were filtered out by Readability`);
+                
+                if (missingImages.length > 0) {
+                    const paragraphs = contentDocument.querySelectorAll('p');
+                    let imageIndex = 0;
+                    
+                    missingImages.forEach((missingImg, index) => {
+                        if (imageIndex < paragraphs.length) {
+                            const imgElement = contentDocument.createElement('img');
+                            imgElement.src = missingImg.src || missingImg.dataSrc || missingImg.dataOriginal;
+                            imgElement.alt = missingImg.alt || `Image ${index + 1}`;
+                            if (missingImg.title) imgElement.title = missingImg.title;
+                            if (missingImg.srcset) imgElement.srcset = missingImg.srcset;
+                            
+                            // Process the recreated image
+                            this.processImageAttributes(imgElement, url);
+                            
+                            // Create a wrapper div for the image
+                            const imageWrapper = contentDocument.createElement('div');
+                            imageWrapper.style.cssText = 'margin: 2rem 0; text-align: center;';
+                            imageWrapper.appendChild(imgElement);
+                            
+                            // Insert after every 2-3 paragraphs
+                            const targetParagraph = paragraphs[Math.min(imageIndex, paragraphs.length - 1)];
+                            if (targetParagraph && targetParagraph.parentNode) {
+                                targetParagraph.parentNode.insertBefore(imageWrapper, targetParagraph.nextSibling);
+                                imageIndex += 2; // Skip 2 paragraphs for next image
+                            }
+                            
+                            console.log(`Mozilla Readability: Re-added missing image: ${imgElement.src?.substring(0, 50)}...`);
+                        }
+                    });
+                }
             }
             
             // Final count of images
@@ -1032,8 +959,12 @@ class OptimizationService {
             console.log(`Mozilla Readability: Final content has ${finalImages.length} images total`);
             console.log(`Mozilla Readability: Final processed content length: ${contentDocument.body.innerHTML.length}`);
             
-            // Create the optimized HTML with enhanced styling
-            const optimizedHTML = `
+            // Create the optimized HTML - choose between enhanced styling or raw output
+            let optimizedHTML;
+            
+            if (additionalProcessing) {
+                // Enhanced styling with custom optimization
+                optimizedHTML = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -1161,6 +1092,39 @@ class OptimizationService {
     ${contentDocument.body.innerHTML}
 </body>
 </html>`;
+            } else {
+                // Raw Mozilla Readability output with minimal styling to preserve original appearance
+                optimizedHTML = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>${article.title || 'Mozilla Readability Raw Output'}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        /* Minimal styling to ensure content is readable but preserve original Readability styling */
+        img {
+            max-width: 100% !important;
+            height: auto !important;
+        }
+        /* Basic responsive behavior */
+        * {
+            max-width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div style="border: 2px solid #orange; padding: 10px; margin-bottom: 20px; background: #fff3cd; color: #856404;">
+        <strong>📄 Raw Mozilla Readability Output</strong><br>
+        <small>This is the unmodified output from Mozilla's Readability library as used in Firefox Reader Mode. No additional styling or image processing has been applied.</small>
+    </div>
+    ${article.byline ? `<div><strong>By:</strong> ${article.byline}</div>` : ''}
+    ${article.excerpt ? `<div><strong>Summary:</strong> ${article.excerpt}</div>` : ''}
+    <h1>${article.title || 'Raw Content'}</h1>
+    ${article.content}
+</body>
+</html>`;
+            }
             
             console.log(`Mozilla Readability: Generated optimized HTML, length: ${optimizedHTML.length}`);
             return optimizedHTML;
