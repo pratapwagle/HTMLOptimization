@@ -141,7 +141,7 @@ app.get('/api/test-content', (req, res) => {
 // API endpoint for HTML optimization
 app.post('/api/optimize', async (req, res) => {
     try {
-        const { url, library } = req.body;
+        const { url, library, additionalProcessing = false } = req.body;
         
         if (!url || !library) {
             return res.status(400).json({ 
@@ -149,16 +149,17 @@ app.post('/api/optimize', async (req, res) => {
             });
         }
 
-        console.log(`Optimizing ${url} with ${library}`);
+        console.log(`Optimizing ${url} with ${library} (additional processing: ${additionalProcessing})`);
         
-        const result = await optimizationService.optimizeHTML(url, library);
+        const result = await optimizationService.optimizeHTML(url, library, additionalProcessing);
         
         res.json({
             success: true,
             originalContent: result.originalContent,
             optimizedContent: result.optimizedContent,
             library: library,
-            url: url
+            url: url,
+            additionalProcessing: additionalProcessing
         });
         
     } catch (error) {
@@ -172,7 +173,7 @@ app.post('/api/optimize', async (req, res) => {
 // API endpoint for file-based HTML optimization
 app.post('/api/optimize-file', async (req, res) => {
     try {
-        const { htmlContent, library, fileName } = req.body;
+        const { htmlContent, library, fileName, additionalProcessing = false } = req.body;
         
         if (!htmlContent || !library) {
             return res.status(400).json({ 
@@ -180,16 +181,17 @@ app.post('/api/optimize-file', async (req, res) => {
             });
         }
 
-        console.log(`Optimizing file "${fileName || 'uploaded file'}" with ${library}`);
+        console.log(`Optimizing file "${fileName || 'uploaded file'}" with ${library} (additional processing: ${additionalProcessing})`);
         
-        const result = await optimizationService.optimizeHTMLContent(htmlContent, library, fileName);
+        const result = await optimizationService.optimizeHTMLContent(htmlContent, library, fileName, additionalProcessing);
         
         res.json({
             success: true,
             originalContent: result.originalContent,
             optimizedContent: result.optimizedContent,
             library: library,
-            fileName: fileName || 'uploaded file'
+            fileName: fileName || 'uploaded file',
+            additionalProcessing: additionalProcessing
         });
         
     } catch (error) {
